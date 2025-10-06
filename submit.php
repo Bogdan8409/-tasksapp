@@ -1,53 +1,66 @@
 <?php
 include('db.php');
-?>
-<div>
-  <a href="index.php">Acasa</a>
-  <a href="tasks_schedule.php">Lista programari</a>
-  <a href="edit.php">Actualizare date</a>
-</div> 
-    <form action="db.php" method="post">
-    <!-- ID-ul -->
-    <input type="hidden" name="id" value="<?php echo $id; ?>">
 
-    <!-- Titlu -->
-    <input type="text" name="title" value="<?= isset($title) ? htmlspecialchars($title) : '' ?>" required>
+// Funcții securitate
+function sanitizeInput($v) {
+  return trim($v);
+}
 
-    <!-- Data -->
-    <input type="date" name="dates" value="<?php echo $dates; ?>">
+function escapeOutput($v) {
+  return htmlspecialchars($v ?? '', ENT_QUOTES, 'UTF-8');
+}
 
-    <!-- Ora de început -->
-    <label for="starttime">Ora de începere</label>
-    <input type="time" name="starttime" value="<?php echo $starttime; ?>">
+function validateDate($date, $format = 'Y-m-d') {
+  $d = DateTime::createFromFormat($format, $date);
+  return $d && $d->format($format) === $date;
+}
 
-    <!-- Ora de sfârșit -->
-    <label for="endtime">Ora sfârșit</label>
-    <input type="time" name="endtime" value="<?php echo $endtime; ?>">
+function validateTime($time) {
+  return preg_match('/^(2[0-3]|[01]?[0-9]):([0-5]?[0-9])$/', $time);
+}
 
-    <!-- Notițe -->
-    <label for="notes">Notițe</label>
-    <textarea name="notes"><?= isset($notes) ? htmlspecialchars($notes) : ''; ?></textarea>
+// === Preluare date ===
+$title     = sanitizeInput($_POST['title']     ?? '');
+$dates     = sanitizeInput($_POST['dates']     ?? '');
+$starttime = sanitizeInput($_POST['starttime'] ?? '');
+$endtime   = sanitizeInput($_POST['endtime']   ?? '');
+$notes     = sanitizeInput($_POST['notes']     ?? '');
+$status    = 'open'; // implicit
 
-    <!-- Buton submit -->
-    <button type="submit" name="update">Update</button>
-</form>
+// === Validare server-side ===
+$errors = [];
 
-    <?php   
-    $title = $_POST['title'] ?? '';
-    $dates = $_POST['dates'] ?? '';
-    $starttime = $_POST['starttime'] ?? '';
-    $endtime = $_POST['endtime'] ?? '';
-    $notes = $_POST['notes'] ?? '';
+if ($title === '' || strlen($title) > 100) {
+  $errors[] = "Titlul este obligatoriu (max 100 caractere).";
+}
+if (!validateDate($dates)) {
+  $errors[] = "Data introdusă nu este validă.";
+}
+if (!validateTime($starttime) || !validateTime($endtime)) {
+  $errors[] = "Formatul orei este invalid.";
+}
+if ($endtime <= $starttime) {
+  $errors[] = "Ora de sfârșit trebuie să fie după ora de început.";
+}
+if (strlen($notes) > 500) {
+  $errors[] = "Notițele nu pot depăși 500 de caractere.";
+}
 
-    $dt = DateTime::createFromFormat('Y-m-d', $dates);
+if (!empty($errors)) {
+  // Returnăm erori ca JSON (pentru AJAX)
+  header('Content-Type: application/json');
+  echo json_encode(['success' => false, 'errors' => $errors]);
+  exit;
+}
 
+// === Salvare în DB ===
+try {
+  $stmt = $pdo->prepare("INSERT INTO tasks (title, dates, starttime, endtime, notes, status) VALUES (?, ?, ?, ?, ?, ?)");
+  $stmt->execute([$title, $dates, $starttime, $endtime, $notes, $status]);
 
-    // Display the submitted data
-    echo "Ora de inceput: " . $starttime . "<br>";
-    echo "Ora de sfarsit: " . $endtime . "<br>";
-    echo "Titlu: " . $title . "<br>";
-    echo "Data: " . $dates . "<br>";
-    echo "Notite: " . $notes;
-
- 
-?>
+  header('Content-Type: application/json');
+  echo json_encode(['success' => true, 'message' => 'Programare adăugată cu succes.']);
+} catch (PDOException $e) {
+  header('Content-Type: application/json');
+  echo json_encode(['success' => false, 'errors' => ['Eroare la salvare: '.$e->getMessage()]]);
+}

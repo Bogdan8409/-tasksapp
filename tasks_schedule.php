@@ -216,7 +216,7 @@ $task = null;
                     
                     echo "</td>";
                     echo "<td>";
-                    echo '<button class="action-btn action-toggle" data-id="' . $rowId . '">Toggle</button>';
+                    echo '<button class="action-btn action-toggle" data-id="' . $rowId . '">Marcheaza deschis</button>';  //toggle button
                     echo '<a href="edit.php?id='.$rowId.'" class="btn btn-sm btn-info">Editează</a>';
                     echo '<button class="action-btn action-delete">Delete</button>';
                     echo "</td>";
@@ -237,6 +237,7 @@ $task = null;
     </div>
   </div>
     <script>
+    //TODO Toggle Status Button Handler
     document.querySelectorAll('.action-toggle').forEach(button => {
         button.addEventListener('click', function() {
             const taskId = this.dataset.id;
